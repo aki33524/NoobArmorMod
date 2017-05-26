@@ -4,6 +4,7 @@ def replace_texture(lod_root, desc):
 		material = primitiveGroup.find('material')
 		name = material.find('identifier').text
 		# FIXME:
+		# surveyingDevice
 		if name not in desc:
 			continue
 
@@ -11,7 +12,9 @@ def replace_texture(lod_root, desc):
 			dds = 'vehicles/sarmor/%d.dds' % desc[name][0]
 		else:
 			dds = 'vehicles/armor/%d.dds' % desc[name][0]
-		material.find('property').find('Texture').text = dds
+		for v in material.findall('property'):
+			if v.find('Texture') is not None:
+				v.text = dds
 
 def default_visual(lod_root, col_root, desc):
 	l = ['renderSet', 'boundingBox', 'minUVDensity', 'geometrySize']
@@ -51,5 +54,9 @@ def chassis_visual(lod_root, col_root, desc):
 	lod_root.insert(0, col_root.find('renderSet'))
 	
 	replace_texture(lod_root, desc)
+
+def segment_visual(lod_root):
+	for c in lod_root.find('node').find('transform')[:3]:
+		c.text = '0.0 0.0 0.0'
 
 

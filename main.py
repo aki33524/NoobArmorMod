@@ -4,7 +4,7 @@ import shutil
 from xml.etree import ElementTree as ET
 import lxml.etree as etree
 
-from visual import gun_visual, chassis_visual, default_visual
+from visual import gun_visual, chassis_visual, default_visual, segment_visual
 from primitives import merge_primitives
 from model import get_model_path
 from writefile import writefile
@@ -13,7 +13,7 @@ BASE_DIR = 'data'
 DESC_DIR = 'data/xmls'
 OUTPUT_DIR = 'output/res'
 
-DEBUG = False
+DEBUG = True
 
 def load_desc(country, name):
 	root = ET.parse(os.path.join(DESC_DIR, country, name+'.xml')).getroot()
@@ -32,7 +32,7 @@ def load_desc(country, name):
 	collision_path = get_model_path(hull.find('hitTester').find('collisionModelClient').text)
 	# Hack
 	model_name = normal_path.split('/')[-1]
-	desc[model_name] = {'armor':d, 'normal':normal_path, 'collision':collision_path}
+	desc[model_name] = {'armor':d, 'normal':normal_path, 'collision':collision_path, 'type':'hull'}
 
 	# Turrets
 	for turret in root.find('turrets0'):
@@ -46,7 +46,7 @@ def load_desc(country, name):
 		collision_path = get_model_path(turret.find('hitTester').find('collisionModelClient').text)
 		# Hack
 		model_name = normal_path.split('/')[-1]
-		desc[model_name] = {'armor':d, 'normal':normal_path, 'collision':collision_path}
+		desc[model_name] = {'armor':d, 'normal':normal_path, 'collision':collision_path, 'type':'turret'}
 
 		# Guns
 		for gun in turret.find('guns'):
@@ -60,7 +60,7 @@ def load_desc(country, name):
 			collision_path = get_model_path(gun.find('hitTester').find('collisionModelClient').text)
 			# Hack
 			model_name = normal_path.split('/')[-1]
-			desc[model_name] = {'armor':d, 'normal':normal_path, 'collision':collision_path}
+			desc[model_name] = {'armor':d, 'normal':normal_path, 'collision':collision_path, 'type':'gun'}
 
 	# Chassis
 	for chassis in root.find('chassis'):
@@ -71,11 +71,13 @@ def load_desc(country, name):
 		collision_path = get_model_path(chassis.find('hitTester').find('collisionModelClient').text)
 		# Hack
 		model_name = normal_path.split('/')[-1]
-		desc[model_name] = {'armor':d, 'normal':normal_path, 'collision':collision_path}
+		desc[model_name] = {'armor':d, 'normal':normal_path, 'collision':collision_path, 'type':'chassis'}
 
 		if chassis.find('splineDesc') is not None:
-			segment_model_path = chassis.find('splineDesc').find('segmentModelLeft').text
-			desc[model_name]['spline'] = get_model_path(segment_model_path)
+			normal_path = get_model_path(chassis.find('splineDesc').find('segmentModelLeft').text)
+			model_name = normal_path.split('/')[-1]
+			d = {'normal':normal_path, 'type':'segment'}
+			desc[model_name] = d
 
 	return desc
 
@@ -93,10 +95,10 @@ def making_model(country, name, desc):
 	}
 	country = d[country]
 	
-	for v in desc.values():
+	for k, v in desc.items():
 		flag = True
 		l1 = ['.visual_processed', '.primitives_processed']
-		l2 = ['normal', 'collision', 'spline']
+		l2 = ['normal', 'collision']
 		for x in l1:
 			for y in l2:
 				if y in v:
@@ -110,13 +112,15 @@ def making_model(country, name, desc):
 						filename = filename.replace('turret', 'Turret')
 					model_path = os.path.join(dirname, filename)
 				
-					if not os.path.exists(model_path) and 'Track' in dirname:
-						dirname = dirname.replace('Track', 'track')
+					if not os.path.exists(model_path):
+						if 'Track' in dirname:
+							dirname = dirname.replace('Track', 'track')
+						elif 'track' in dirname:
+							dirname = dirname.replace('track', 'Track')
 					model_path = os.path.join(dirname, filename)
-					
+
 					flag &= os.path.exists(model_path)
 		assert(flag)
-
 
 	for v in desc.values():
 		"""
@@ -138,23 +142,28 @@ def making_model(country, name, desc):
 		# if not DEBUG:
 		# 	with open(model_path, 'wb') as f:
 		# 		f.write(s)
-		
+
 		"""
 		visual_processed
 		"""
 		lod_path = os.path.join(BASE_DIR, v['normal']+'.visual_processed')
-		col_path = os.path.join(BASE_DIR, v['collision']+'.visual_processed')
-
 		lod_root = ET.parse(lod_path).getroot()
-		col_root = ET.parse(col_path).getroot()
-		
+			
 		model_name = v['normal'].split('/')[-1]
-		if "Gun" in model_name:
-			gun_visual(lod_root, col_root, desc[model_name])
-		elif "Chassis" in model_name:
-			chassis_visual(lod_root, col_root, desc[model_name])
+
+		if v['type'] == 'segment':
+			segment_visual(lod_root)
 		else:
-			default_visual(lod_root, col_root, desc[model_name])
+			# print(model_name)
+			col_path = os.path.join(BASE_DIR, v['collision']+'.visual_processed')
+			col_root = ET.parse(col_path).getroot()
+
+			if "Gun" in model_name:
+				gun_visual(lod_root, col_root, desc[model_name]['armor'])
+			elif "Chassis" in model_name:
+				chassis_visual(lod_root, col_root, desc[model_name]['armor'])
+			else:
+				default_visual(lod_root, col_root, desc[model_name]['armor'])
 
 		lod_root = etree.fromstring(ET.tostring(lod_root))
 		s = etree.tostring(lod_root, encoding='utf-8', pretty_print=True)
@@ -167,10 +176,13 @@ def making_model(country, name, desc):
 		primitives_processed
 		"""
 		lod_path = os.path.join(BASE_DIR, v['normal']+'.primitives_processed')
-		col_path = os.path.join(BASE_DIR, v['collision']+'.primitives_processed')
-
 		model_path = os.path.join(OUTPUT_DIR, v['normal']+'.primitives_processed')
 		model_name = v['normal'].split('/')[-1]
+		
+		if v['type'] == 'segment':
+			col_path = 	lod_path
+		else:		
+			col_path = os.path.join(BASE_DIR, v['collision']+'.primitives_processed')
 		
 		if 'Chassis' in model_name:
 			s = merge_primitives(lod_path, col_path)
@@ -200,7 +212,7 @@ if __name__ == '__main__':
 		if country == 'common':	
 			continue
 
-		if DEBUG and country != 'czech':
+		if DEBUG and country != 'japan':
 			continue
 
 		root = ET.parse(os.path.join(DESC_DIR, country, 'list.xml')).getroot()
@@ -211,7 +223,9 @@ if __name__ == '__main__':
 			print(vehicle.tag)
 			
 			desc = load_desc(country, vehicle.tag)
-			
+			# for k, v in desc.items():
+			# 	print(k)
+			# 	print(v)
 			making_model(country, vehicle.tag, desc)
 
 		# 	shutil.make_archive('NoobArmorMod.wotmod', 'zip', 'output')
