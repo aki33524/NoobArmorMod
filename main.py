@@ -7,10 +7,11 @@ import lxml.etree as etree
 from visual import gun_visual, chassis_visual, default_visual
 from primitives import merge_primitives
 from model import get_model_path
+from writefile import writefile
 
-DESC_DIR = 'data/vehicles'
-MODEL_DIR = 'data/vehicles_level_01/vehicles'
-OUTPUT_DIR = 'output/res/vehicles'
+BASE_DIR = 'data'
+DESC_DIR = 'data/xmls'
+OUTPUT_DIR = 'output/res'
 
 DEBUG = False
 
@@ -27,8 +28,11 @@ def load_desc(country, name):
 			d[armor.tag] = (int(float(armor.text)), True)
 		else:
 			d[armor.tag] = (int(float(armor.text)), False)
-	hull_model_name = hull.find('models').find('undamaged').text.split('/')[-1].split('.')[0]
-	desc[hull_model_name] = d
+	normal_path = get_model_path(hull.find('models').find('undamaged').text)
+	collision_path = get_model_path(hull.find('hitTester').find('collisionModelClient').text)
+	# Hack
+	model_name = normal_path.split('/')[-1]
+	desc[model_name] = {'armor':d, 'normal':normal_path, 'collision':collision_path}
 
 	# Turrets
 	for turret in root.find('turrets0'):
@@ -38,8 +42,11 @@ def load_desc(country, name):
 				d[armor.tag] = (int(float(armor.text)), True)
 			else:
 				d[armor.tag] = (int(float(armor.text)), False)
-		turret_model_name = turret.find('models').find('undamaged').text.split('/')[-1].split('.')[0]
-		desc[turret_model_name] = d
+		normal_path = get_model_path(turret.find('models').find('undamaged').text)
+		collision_path = get_model_path(turret.find('hitTester').find('collisionModelClient').text)
+		# Hack
+		model_name = normal_path.split('/')[-1]
+		desc[model_name] = {'armor':d, 'normal':normal_path, 'collision':collision_path}
 
 		# Guns
 		for gun in turret.find('guns'):
@@ -49,20 +56,26 @@ def load_desc(country, name):
 					d[armor.tag] = (int(float(armor.text)), True)
 				else:
 					d[armor.tag] = (int(float(armor.text)), False)
-			gun_model_name = gun.find('models').find('undamaged').text.split('/')[-1].split('.')[0]
-			desc[gun_model_name] = d
+			normal_path = get_model_path(gun.find('models').find('undamaged').text)
+			collision_path = get_model_path(gun.find('hitTester').find('collisionModelClient').text)
+			# Hack
+			model_name = normal_path.split('/')[-1]
+			desc[model_name] = {'armor':d, 'normal':normal_path, 'collision':collision_path}
 
 	# Chassis
 	for chassis in root.find('chassis'):
 		d = {}
 		for armor in chassis.find('armor'):
 			d[armor.tag] = (int(float(armor.text)), True)
-		chassis_model_name = chassis.find('models').find('undamaged').text.split('/')[-1].split('.')[0]
-		desc[chassis_model_name] = d
+		normal_path = get_model_path(chassis.find('models').find('undamaged').text)
+		collision_path = get_model_path(chassis.find('hitTester').find('collisionModelClient').text)
+		# Hack
+		model_name = normal_path.split('/')[-1]
+		desc[model_name] = {'armor':d, 'normal':normal_path, 'collision':collision_path}
 
-		if chassis.find('splineDesc'):
+		if chassis.find('splineDesc') is not None:
 			segment_model_path = chassis.find('splineDesc').find('segmentModelLeft').text
-			get_model_path(segment_model_path)
+			desc[model_name]['spline'] = get_model_path(segment_model_path)
 
 	return desc
 
@@ -80,110 +93,125 @@ def making_model(country, name, desc):
 	}
 	country = d[country]
 	
-	BASE_PATH = os.path.join(MODEL_DIR, country, name)
-	OUTPUT_PATH = os.path.join(OUTPUT_DIR, country, name)
-
-	# FIXME:
-	if not os.path.exists(os.path.join(BASE_PATH, 'normal')):
-		return
-
-	for c in os.listdir(os.path.join(BASE_PATH, 'normal')):
-		# FIXME: It should use lod4 for memory
-		if c == 'lod0':
-			sdir = os.path.join(BASE_PATH, 'normal', c)
-			ddir = os.path.join(OUTPUT_PATH, 'normal', c)
-			try:
-				os.makedirs(sdir)
-			except FileExistsError:
-				pass
-			shutil.copytree(sdir, ddir)
-
-	for c in os.listdir(os.path.join(BASE_PATH, 'collision_client')):
-		if '.model' in c:
-			"""
-			FIXME
-			It should rewrite model paths and copy models.
-			"""
-			model_path = os.path.join(BASE_PATH, 'collision_client', c)
-			mroot = ET.parse(model_path).getroot()
-
-			nv = mroot.find('nodelessVisual').text
-			mroot.find('nodelessVisual').text = nv.replace('/collision_client', '/normal/lod0')
-			mroot.append(ET.fromstring('<tank>true</tank>'))
-
-			emroot = etree.fromstring(ET.tostring(mroot))
-			s = etree.tostring(emroot, encoding='utf-8', pretty_print=True)
-
-			model_path = os.path.join(OUTPUT_PATH, 'normal', 'lod0', c)
-
-			if not DEBUG:
-				with open(model_path, 'wb') as f:
-					f.write(s)
+	for v in desc.values():
+		flag = True
+		l1 = ['.visual_processed', '.primitives_processed']
+		l2 = ['normal', 'collision', 'spline']
+		for x in l1:
+			for y in l2:
+				if y in v:
+					model_path = os.path.join(BASE_DIR, v[y]+x)
+					if '\\' in model_path:
+						model_path = model_path.replace('\\', '/')
 					
-		if '.visual_processed' in c:
-			lod_path = os.path.join(BASE_PATH, 'normal', 'lod0', c)
-			col_path = os.path.join(BASE_PATH, 'collision_client', c)
+					dirname, filename = os.path.split(model_path)
+					
+					if 'turret' in filename:
+						filename = filename.replace('turret', 'Turret')
+					model_path = os.path.join(dirname, filename)
+				
+					if not os.path.exists(model_path) and 'Track' in dirname:
+						dirname = dirname.replace('Track', 'track')
+					model_path = os.path.join(dirname, filename)
+					
+					flag &= os.path.exists(model_path)
+		assert(flag)
 
-			# FIXME:
-			if not os.path.exists(lod_path):
-				continue
 
-			lod_root = ET.parse(lod_path).getroot()
-			col_root = ET.parse(col_path).getroot()
-			model_name = c.split('.')[0]
-			
-			# FIXME:
-			if model_name not in desc:
-				continue
+	for v in desc.values():
+		"""
+		FIXME
+		Should it rewrite model paths and copy models?.
+		"""
+		# model_path = os.path.join(BASE_PATH, v['collision'], c)
+		# mroot = ET.parse(model_path).getroot()
 
-			if "Gun" in model_name:
-				gun_visual(lod_root, col_root, desc[model_name])
-			elif "Chassis" in model_name:
-				chassis_visual(lod_root, col_root, desc[model_name])
-			else:
-				default_visual(lod_root, col_root, desc[model_name])
+		# nv = mroot.find('nodelessVisual').text
+		# mroot.find('nodelessVisual').text = nv.replace('/collision_client', '/normal/lod0')
+		# mroot.append(ET.fromstring('<tank>true</tank>'))
 
-			lod_root = etree.fromstring(ET.tostring(lod_root))
-			s = etree.tostring(lod_root, encoding='utf-8', pretty_print=True)
+		# emroot = etree.fromstring(ET.tostring(mroot))
+		# s = etree.tostring(emroot, encoding='utf-8', pretty_print=True)
 
-			model_path = os.path.join(OUTPUT_PATH, 'normal', 'lod0', c)
+		# model_path = os.path.join(OUTPUT_PATH, 'normal', 'lod0', c)
+
+		# if not DEBUG:
+		# 	with open(model_path, 'wb') as f:
+		# 		f.write(s)
+		
+		"""
+		visual_processed
+		"""
+		lod_path = os.path.join(BASE_DIR, v['normal']+'.visual_processed')
+		col_path = os.path.join(BASE_DIR, v['collision']+'.visual_processed')
+
+		lod_root = ET.parse(lod_path).getroot()
+		col_root = ET.parse(col_path).getroot()
+		
+		model_name = v['normal'].split('/')[-1]
+		if "Gun" in model_name:
+			gun_visual(lod_root, col_root, desc[model_name])
+		elif "Chassis" in model_name:
+			chassis_visual(lod_root, col_root, desc[model_name])
+		else:
+			default_visual(lod_root, col_root, desc[model_name])
+
+		lod_root = etree.fromstring(ET.tostring(lod_root))
+		s = etree.tostring(lod_root, encoding='utf-8', pretty_print=True)
+
+		model_path = os.path.join(OUTPUT_DIR, v['normal']+'.visual_processed')
+		if not DEBUG:
+			writefile(model_path, s)
+
+		"""
+		primitives_processed
+		"""
+		lod_path = os.path.join(BASE_DIR, v['normal']+'.primitives_processed')
+		col_path = os.path.join(BASE_DIR, v['collision']+'.primitives_processed')
+
+		model_path = os.path.join(OUTPUT_DIR, v['normal']+'.primitives_processed')
+		model_name = v['normal'].split('/')[-1]
+		
+		if 'Chassis' in model_name:
+			s = merge_primitives(lod_path, col_path)
 			if not DEBUG:
-				with open(model_path, "wb") as f:
-					f.write(s)
+				writefile(model_path, s)
+		else:
+			if not DEBUG:
+				# OK?
+				shutil.copy(col_path, model_path)
 
-		if '.primitives_processed' in c:
-			lod_path = os.path.join(BASE_PATH, 'normal', 'lod0', c)
-			col_path = os.path.join(BASE_PATH, 'collision_client', c)
+		"""
+		model
+		"""
+		sdir = os.path.join(BASE_DIR, v['normal']+'.model')
+		ddir = os.path.join(OUTPUT_DIR, v['normal']+'.model')
+		if not DEBUG:
+			shutil.copy(sdir, ddir)
+				
 
-			# FIXME:
-			if not os.path.exists(lod_path):
-				continue
+if __name__ == '__main__':
+	black_list = [
+		'Ch01_Type59_Gold',
+		'Ch03_WZ_111_A',
+	]
 
-			model_path = os.path.join(OUTPUT_PATH, 'normal', 'lod0', c)
-			if 'Chassis' in c:
-				s = merge_primitives(lod_path, col_path)
-				if not DEBUG:
-					with open(model_path, "wb") as f:
-						f.write(s)
-			else:
-				if not DEBUG:
-					shutil.copy(col_path, model_path)
-
-for country in os.listdir(DESC_DIR):
-	if country == 'common':	
-		continue
-
-	root = ET.parse(os.path.join(DESC_DIR, country, 'list.xml')).getroot()
-	for vehicle in root:
-		level = int(vehicle.find('level').text)
-
-		if level != 1:
+	for country in os.listdir(DESC_DIR):
+		if country == 'common':	
 			continue
 
-		print(vehicle.tag)
-		
-		desc = load_desc(country, vehicle.tag)
+		if DEBUG and country != 'czech':
+			continue
 
-		making_model(country, vehicle.tag, desc)
+		root = ET.parse(os.path.join(DESC_DIR, country, 'list.xml')).getroot()
+		for vehicle in root:
+			if vehicle.tag in black_list:
+				continue
 
-		shutil.make_archive('NoobArmorMod.wotmod', 'zip', 'output')
+			print(vehicle.tag)
+			
+			desc = load_desc(country, vehicle.tag)
+			
+			making_model(country, vehicle.tag, desc)
+
+		# 	shutil.make_archive('NoobArmorMod.wotmod', 'zip', 'output')
