@@ -17,3 +17,11 @@ If you want to change armor color, replace `colors.wotmod`. This is uncompressed
 `armor/x.png` corresponds to armor of thikness x-mm.
 
 `sarmor/x.png` corresponds to space armor of thikness x-mm.
+
+In default file, 
+
+under 32mm armor is green.
+orver 160mm armor is red.
+
+under 32mm space armor is sky.
+orver 160mm armor is purple.
