@@ -9,12 +9,12 @@ def replace_texture(lod_root, desc):
 			continue
 
 		if desc[name][1]:
-			dds = 'vehicles/sarmor/%d.dds' % desc[name][0]
+			png = 'sarmor/%d.png' % desc[name][0]
 		else:
-			dds = 'vehicles/armor/%d.dds' % desc[name][0]
+			png = 'armor/%d.png' % desc[name][0]
 		for v in material.findall('property'):
 			if v.find('Texture') is not None:
-				v.text = dds
+				v.find('Texture').text = png
 
 def default_visual(lod_root, col_root, desc):
 	l = ['renderSet', 'boundingBox', 'minUVDensity', 'geometrySize']
@@ -55,8 +55,5 @@ def chassis_visual(lod_root, col_root, desc):
 	
 	replace_texture(lod_root, desc)
 
-def segment_visual(lod_root):
-	for c in lod_root.find('node').find('transform')[:3]:
-		c.text = '0.0 0.0 0.0'
-
-
+# def segment_visual(lod_root):
+# 	print(lod_root.find('library_visual_scenes/visual_scene/node/matrix').text)
