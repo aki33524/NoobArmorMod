@@ -9,10 +9,12 @@ It is LEGAL, I asked Japanese staff with a ticket.
 
 
 # Installation
-Move `NoobArmorMod` to under `World_of_Tanks/mods/0.9.18.0`.
+https://github.com/aki33524/NoobArmorMod/releases
+
+Move `aki33524.noobarmor_x.x.wotmod` and `aki33524.noobarmor_colors.wotmod` to under `World_of_Tanks/mods/0.9.18.0`.
 
 # Customisation
-If you want to change armor color, replace `colors.wotmod`. This is uncompressed zip file. It's easy.
+If you want to change armor color, replace `noobarmor_colors.wotmod`. This is uncompressed zip file. It's easy.
 
 `armor/x.png` corresponds to armor of thikness x-mm.
 
