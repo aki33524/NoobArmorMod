@@ -11,8 +11,7 @@ from writefile import writefile, copyfile
 
 BASE_DIR = 'data'
 DESC_DIR = 'data/xmls'
-OUTPUT_DIR_TEMPLATE = 'output/%s/res'
-OUTPUT_DIR = ''
+OUTPUT_DIR = 'output/res'
 
 DEBUG = False
 
@@ -30,7 +29,11 @@ def load_desc(country, name):
 			d[armor.tag] = (int(float(armor.text)), True)
 		else:
 			d[armor.tag] = (int(float(armor.text)), False)
-	normal_path = get_model_path(hull.find('models').find('undamaged').text)
+	normal_path = get_model_path(hull.find('models/undamaged').text)
+	l = normal_path.split('/')
+	l[2] = name
+	hull.find('models/undamaged').text = os.path.join(*l)+'.model'
+	
 	collision_path = get_model_path(hull.find('hitTester').find('collisionModelClient').text)
 	# Hack
 	model_name = normal_path.split('/')[-1]
@@ -44,8 +47,12 @@ def load_desc(country, name):
 				d[armor.tag] = (int(float(armor.text)), True)
 			else:
 				d[armor.tag] = (int(float(armor.text)), False)
-		normal_path = get_model_path(turret.find('models').find('undamaged').text)
-		collision_path = get_model_path(turret.find('hitTester').find('collisionModelClient').text)
+		normal_path = get_model_path(turret.find('models/undamaged').text)
+		l = normal_path.split('/')
+		l[2] = name
+		turret.find('models/undamaged').text = os.path.join(*l)+'.model'
+
+		collision_path = get_model_path(turret.find('hitTester/collisionModelClient').text)
 		# Hack
 		model_name = normal_path.split('/')[-1]
 		desc[model_name] = {'armor':d, 'normal':normal_path, 'collision':collision_path, 'type':'turret'}
@@ -58,8 +65,12 @@ def load_desc(country, name):
 					d[armor.tag] = (int(float(armor.text)), True)
 				else:
 					d[armor.tag] = (int(float(armor.text)), False)
-			normal_path = get_model_path(gun.find('models').find('undamaged').text)
-			collision_path = get_model_path(gun.find('hitTester').find('collisionModelClient').text)
+			normal_path = get_model_path(gun.find('models/undamaged').text)
+			l = normal_path.split('/')
+			l[2] = name
+			gun.find('models/undamaged').text = os.path.join(*l)+'.model'
+
+			collision_path = get_model_path(gun.find('hitTester/collisionModelClient').text)
 			# Hack
 			model_name = normal_path.split('/')[-1]
 			desc[model_name] = {'armor':d, 'normal':normal_path, 'collision':collision_path, 'type':'gun'}
@@ -69,18 +80,17 @@ def load_desc(country, name):
 		d = {}
 		for armor in chassis.find('armor'):
 			d[armor.tag] = (int(float(armor.text)), True)
-		normal_path = get_model_path(chassis.find('models').find('undamaged').text)
-		collision_path = get_model_path(chassis.find('hitTester').find('collisionModelClient').text)
+		normal_path = get_model_path(chassis.find('models/undamaged').text)
+		l = normal_path.split('/')
+		l[2] = name
+		chassis.find('models/undamaged').text = os.path.join(*l)+'.model'
+
+		collision_path = get_model_path(chassis.find('hitTester/collisionModelClient').text)
 		# Hack
 		model_name = normal_path.split('/')[-1]
 		desc[model_name] = {'armor':d, 'normal':normal_path, 'collision':collision_path, 'type':'chassis'}
 
 		if chassis.find('splineDesc') is not None:
-			# normal_path = get_model_path(chassis.find('splineDesc/segmentModelLeft').text)
-			# model_name = normal_path.split('/')[-1]
-			# d = {'normal':normal_path, 'type':'segment'}
-			# desc[model_name] = d
-
 			chassis.find('splineDesc/segmentLength').text = '0'
 			eroot = etree.fromstring(ET.tostring(root))
 			s = etree.tostring(eroot, encoding='utf-8', pretty_print=True)
@@ -105,38 +115,7 @@ def making_model(country, name, desc):
 
 	OUTPUT_BASE = os.path.join(OUTPUT_DIR, 'vehicles', country, name)
 	
-	# FIXME: conver to lowercase?
-	# for k, v in desc.items():
-	# 	flag = True
-	# 	l1 = ['.visual_processed', '.primitives_processed']
-	# 	l2 = ['normal', 'collision']
-	# 	for x in l1:
-	# 		for y in l2:
-	# 			if y in v:
-	# 				model_path = os.path.join(BASE_DIR, v[y]+x)
-	# 				if '\\' in model_path:
-	# 					model_path = model_path.replace('\\', '/')
-					
-	# 				dirname, filename = os.path.split(model_path)
-					
-	# 				if 'turret' in filename:
-	# 					filename = filename.replace('turret', 'Turret')
-	# 				model_path = os.path.join(dirname, filename)
-				
-	# 				if not os.path.exists(model_path):
-	# 					if 'Track' in dirname:
-	# 						dirname = dirname.replace('Track', 'track')
-	# 					elif 'track' in dirname:
-	# 						dirname = dirname.replace('track', 'Track')
-	# 				model_path = os.path.join(dirname, filename)
-
-	# 				flag &= os.path.exists(model_path)
-	# 	assert(flag)
-
 	for v in desc.values():
-		# if v['type'] == 'segment':
-		# 	opath = os.path.join(OUTPUT_BASE, *v['normal'].split('/')[-2:])
-		# else:
 		opath = os.path.join(OUTPUT_BASE, *v['normal'].split('/')[-3:])
 		
 		"""
@@ -150,9 +129,9 @@ def making_model(country, name, desc):
 			lod_root.remove(lod_root.find('extent'))
 		
 		if lod_root.find('nodelessVisual') is not None:
-			lod_root.find('nodelessVisual').text = os.path.join(*opath.split('/')[3:])
+			lod_root.find('nodelessVisual').text = os.path.join(*opath.split('/')[2:])
 		if lod_root.find('nodefullVisual') is not None:
-			lod_root.find('nodefullVisual').text = os.path.join(*opath.split('/')[3:])
+			lod_root.find('nodefullVisual').text = os.path.join(*opath.split('/')[2:])
 		
 		lod_root = etree.fromstring(ET.tostring(lod_root))
 		s = etree.tostring(lod_root, encoding='utf-8', pretty_print=True)
@@ -166,16 +145,6 @@ def making_model(country, name, desc):
 		lod_root = ET.parse(lod_path).getroot()
 			
 		model_name = v['normal'].split('/')[-1]
-
-		# if v['type'] == 'segment':
-		# 	l = ['right.track', 'left.track']
-		# 	for c in l:
-		# 		lod_path = os.path.join(BASE_DIR, os.path.dirname(v['normal']), c)
-		# 		lod_root = ET.parse(lod_path).getroot()
-
-		# 		segment_visual(lod_root)
-		# 		writefile(os.path.join(os.path.dirname(opath), c), s)
-		# else:
 
 		col_path = os.path.join(BASE_DIR, v['collision']+'.visual_processed')
 		col_root = ET.parse(col_path).getroot()
@@ -198,9 +167,6 @@ def making_model(country, name, desc):
 		lod_path = os.path.join(BASE_DIR, v['normal']+'.primitives_processed')
 		model_name = v['normal'].split('/')[-1]
 		
-		# if v['type'] == 'segment':
-		# 	col_path = 	lod_path
-		# else:		
 		col_path = os.path.join(BASE_DIR, v['collision']+'.primitives_processed')
 		
 		if v['type'] == 'chassis':
@@ -225,7 +191,6 @@ if __name__ == '__main__':
 				continue
 
 			print(vehicle.tag)
-			OUTPUT_DIR = OUTPUT_DIR_TEMPLATE % ('level_%s'%(vehicle.find('level').text))
 			
 			desc = load_desc(country, vehicle.tag)
 			# for k, v in desc.items():
