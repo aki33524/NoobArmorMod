@@ -27,3 +27,7 @@ orver 160mm armor is red.
 
 under 32mm space armor is sky.
 orver 160mm armor is purple.
+
+# Technical Details
+In Japanese
+http://aki33524.hatenablog.com/entry/2017/05/29/104046
